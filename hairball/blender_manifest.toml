@@ -1,0 +1,13 @@
+schema_version = "1.0.0"
+id = "hairball"
+version = "0.5.0"
+name = "Hairball"
+tagline = "Generate editable hair cards from native hair curves"
+maintainer = "Hairball contributors"
+type = "add-on"
+tags = ["Object", "Material"]
+blender_version_min = "5.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "*.pyc", ".*", "*.zip"]

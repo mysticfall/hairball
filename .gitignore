@@ -1,0 +1,28 @@
+# Generated extension packages and build output
+/dist/
+/build/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# Local agent/editor configuration
+/opencode.json
+.idea/
+.vscode/
+
+# Generated Blender/Godot files and test artifacts
+*.blend
+*.blend[0-9]*
+.godot/
+*.import
+/test-artifacts/
+
+# OS metadata
+.DS_Store
+Thumbs.db
