@@ -1,7 +1,7 @@
 # Approved scope and decisions
 
-The original approved plan is archived at
-`/home/mysticfall/.plannotator/plans/hairball-native-blender-hair-t-2026-10-05-approved.md`.
+The original approved plan (2026-10-05) remains archived in the original
+author's local Plannotator plan store; it is not part of this repository.
 This specification records its durable requirements and subsequent decisions.
 Implementation is authorized in the current session; no separate session or
 subagent is required or authorized.

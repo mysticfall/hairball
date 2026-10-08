@@ -9,7 +9,8 @@ cards. Read `README.md` and `docs/specification/index.md` first.
 - The user's interactive Blender is used for unrelated work. Do not access
   Blender MCP without first asking the user. Run tests in isolated processes:
   `blender --background --factory-startup --disable-autoexec --threads 2`.
-- Never save over the supplied Ayana character or modify the Alleycat game.
+- Never save over reference characters or modify external game projects;
+  everything listed under References is read-only.
 - Every generation must create independent versioned output; never modify
   existing cards, images, grooms, or rig state to regenerate.
 - No scene mutation at import, registration, or UI draw.
@@ -52,11 +53,32 @@ fails on strands bowing between rows. Export Cards Package drives the native
 glTF exporter and image save with one base name; it is automation of ordinary
 Blender tools, not a custom exporter, and never writes game projects.
 
+## Repository layout
+- `hairball/` — extension source package: `blender_manifest.toml`, UI and
+  operators, plus the evaluation, deformation, clustering, cards, atlas,
+  baking, material, groom and export modules.
+- `tools/` — headless test scripts and feasibility/attachment probes, run
+  as shown in README "Development and verification".
+- `docs/specification/` — approved scope and decisions (`index.md`) and
+  verification status (`verification.md`).
+- `godot/` — Godot import instructions and the reusable
+  `skinned_mesh_root.gd` mesh-root import script.
+- `dist/` — extension build output, never committed.
+
 ## References (read only)
-- Layout: `/home/mysticfall/workspace/pawprint/pawprint/` and its tools/specifications.
-- Shader contract: `/home/mysticfall/workspace/alleycat/game/content/the_veridian_spc/hair/materials/shaders/hair.gdshader`
-  and `hair.gdshaderinc`.
-- Character: `/home/mysticfall/workspace/Blender/Ayana/Ayana.texture.blend`.
-  Use visible `Ayana.Ayana.female_generic_with_simplified_genitals_fixed`,
-  NOT hidden `Ayana.body`. The visible mesh has no shape keys.
-- Local Wings comparison assets must not be redistributed.
+None of these are part of the repository; consult them only when explicitly
+provided in the environment.
+- Target runtime: GodotHair (https://github.com/2Retr0/GodotHair). The
+  data-map channel contract is recorded in `docs/specification/index.md`
+  ("Maps and viewport") and the README ("Godot setup"); the original
+  reference shaders belong to the author's private game project.
+- Validation character: a local textured human character ("Ayana") on the
+  original developer's machine, never committed or redistributed. Use its
+  visible mesh `Ayana.Ayana.female_generic_with_simplified_genitals_fixed`
+  (no shape keys), NOT the hidden `Ayana.body`, and only through a working
+  copy. Otherwise validate with any complete mesh that has valid,
+  non-overlapping UVs; synthetic fixtures in `tools/` provide automated
+  coverage.
+- Wings comparison assets are local and license-restricted
+  (attribution/noncommercial): never redistribute or bundle them, and treat
+  their measurements as one comparison point, not a universal budget.
