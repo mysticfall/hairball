@@ -26,3 +26,6 @@ htmlcov/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
