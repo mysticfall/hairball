@@ -13,7 +13,7 @@ to blue as requested; this does not establish GodotHair shading equivalence.
 
 All tests run in separate factory-startup background processes. No interactive
 Blender MCP, reference character save, or game-project changes were used.
-All twelve test scripts pass on the source checkout. Version remains 0.5.0 and no
+All thirteen test scripts pass on the source checkout. Version remains 0.5.0 and no
 new distribution was built, as requested.
 
 | Gate | Evidence |
@@ -68,6 +68,9 @@ new distribution was built, as requested.
 | Update rollback/lifecycle | Empty/oversized results and injected evaluation failure restore the old graph without leaked groups; explicit undo/redo and reopen preserve applied settings |
 | Raster batching | 28,764 scalar-reference comparisons have identical interpolation factors, hit masks and depth arrays; bounded batch scratch and original depth-winner ordering |
 | Original-baker equivalence | Same saved 120-strand fixture baked through the pre-change and batched functions produces exactly equal packed-image pixels for both maps |
+| Grouped multi-groom generation | Two one-sided grooms selected together combine into one versioned mesh named after the active groom; per-groom cards keep disjoint namespaced strand ids, per-vertex surface indices, per-side anchor weights and disjoint baked seed ranges under one shared rig with primary-surface morph drivers |
+| Grouping boundaries | Hidden backup grooms never join a run even when still selected; single-groom selection stays standalone with unchanged provenance/versioning; mismatched armatures or shape-key layouts reject without leaks or counts changes |
+| Coverage saturation warning | Baking counts cards whose occupied texels are ≥90% above 0.95 coverage; Radius Scale 0.1 yields none, thicker scales only add them, and the cards operator warns that Godot may render flat cards |
 
 The native groom fixture is `/tmp/opencode/hairball-tests/groom.blend`;
 the new geometry fixture/render are `cards.blend` and `cards.png` in that directory.

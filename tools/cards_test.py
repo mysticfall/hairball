@@ -169,7 +169,7 @@ def main():
     # A failed transfer after output allocation must remove only owned data.
     from hairball import geometry
     original_transfer = geometry.transfer
-    def fail_transfer(surface, target, anchors):
+    def fail_transfer(surfaces, target, anchors, surface_indices=None, primary=0):
         target.shape_key_add(name="Basis")
         raise HairballError("injected transfer failure")
     geometry.transfer = fail_transfer

@@ -149,6 +149,7 @@ def bake(mesh, ribbons, tiles, name, seed=0):
         bases.append((tangent, normal.cross(tangent) * loop.bitangent_sign, normal))
     triangle_start = 0
     warnings = 0
+    saturated = 0
     for ribbon, tile in zip(ribbons, tiles):
         projected = [(strand, _project(ribbon, strand)) for strand in ribbon.strands]
         depths = [p[2] for _, points in projected for p in points]
@@ -196,6 +197,9 @@ def bake(mesh, ribbons, tiles, name, seed=0):
             raise HairballError("A card has no covered texels; increase Atlas Size or strand radius.")
         if np.count_nonzero(coverage) < height:
             warnings += 1
+        # Near-solid coverage cannot dither into individual strands downstream.
+        if np.count_nonzero(coverage > 0.95) >= 0.9 * np.count_nonzero(coverage):
+            saturated += 1
         # Extend data two texels outside coverage; never extend opacity or mix islands.
         valid = coverage > 0
         for _ in range(2):
@@ -212,7 +216,7 @@ def bake(mesh, ribbons, tiles, name, seed=0):
     try:
         images.append(_image(f"{name} Attributes", attributes))
         images.append(_image(f"{name} Coordinates", coordinates))
-        return images, warnings
+        return images, warnings, saturated
     except Exception:
         for image in images:
             bpy.data.images.remove(image)

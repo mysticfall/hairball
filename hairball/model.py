@@ -28,7 +28,10 @@ class HairballSettings(bpy.types.PropertyGroup):
     radius_scale: FloatProperty(name="Radius Scale", default=1.0, min=0.01, soft_max=10, precision=2,
                                 description="Generation-time multiplier for baked strand radii (coverage thickness). "
                                             "The groom's radius attribute is never modified; 1.0 keeps physical radius. "
-                                            "Short body hair often reads thicker at 2-4")
+                                            "GodotHair dithers the coverage channel into strands, so low values "
+                                            "(0.1-0.3) keep texels partially covered and render finer strands, while "
+                                            "high values saturate coverage and hair renders as solid cards. "
+                                            "Only the approximate Blender preview reads thicker at 2-4")
     fit_error: FloatProperty(name="Fit Error", default=0.001, min=0.000001,
                              description="Maximum sampled centerline fitting error in world-space units. Smaller values follow bends more closely and use more segments; increase Max Segments if fitting fails",
                              subtype="DISTANCE", unit="LENGTH")

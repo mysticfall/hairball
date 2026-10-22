@@ -45,7 +45,7 @@ def channels_test():
     layer = mesh.uv_layers.new(name='UVMap')
     for loop, item in zip(mesh.loops, layer.data):
         item.uv = tiles[0].uv(uvs[loop.vertex_index])
-    images, _ = bake(mesh, (ribbon,), tiles, 'Channel test', seed=7)
+    images, _, _ = bake(mesh, (ribbon,), tiles, 'Channel test', seed=7)
     a, c = map(pixels, images)
     mask = a[:, :, 0] > 0
     assert mask.any() and np.any((a[:, :, 0] > 0) & (a[:, :, 0] < 1))
@@ -176,16 +176,28 @@ def main():
     radius_attribute = groom.data.attributes['radius']
     groom_radii = np.empty(len(radius_attribute.data), dtype=np.float32)
     radius_attribute.data.foreach_get('value', groom_radii)
-    base = generate_geometry(groom, settings, textured=True)[0]
+    base, base_report = generate_geometry(groom, settings, textured=True)
     base_mean = float(pixels(base['hairball_attributes'])[:, :, 0].mean())
     settings.radius_scale = 2.0
-    thick = generate_geometry(groom, settings, textured=True)[0]
+    thick, thick_report = generate_geometry(groom, settings, textured=True)
     thick_mean = float(pixels(thick['hairball_attributes'])[:, :, 0].mean())
+    settings.radius_scale = 0.1
+    thin, thin_report = generate_geometry(groom, settings, textured=True)
     settings.radius_scale = 1.0
     assert len(thick.data.vertices) == len(base.data.vertices)
     # Widened cards grow with scaled radius, so coverage grows sublinearly.
     assert 1.1 < thick_mean / max(base_mean, 1e-6) < 3.0, (base_mean, thick_mean)
     assert '"radius_scale": 2.0' in thick['hairball_settings']
+    # Near-solid coverage cannot dither into strands in Godot; the generator
+    # counts saturated cards so the operator can warn. Thin radii never
+    # saturate, and scaling up can only add, never remove, saturated cards.
+    assert thin_report['saturated_cards'] == 0, thin_report
+    assert thick_report['saturated_cards'] >= base_report['saturated_cards'], (
+        base_report, thick_report)
+    print('HAIRBALL_SATURATED', json.dumps({
+        'thin': thin_report['saturated_cards'],
+        'base': base_report['saturated_cards'],
+        'thick': thick_report['saturated_cards']}))
     after = np.empty(len(radius_attribute.data), dtype=np.float32)
     radius_attribute.data.foreach_get('value', after)
     assert np.array_equal(groom_radii, after)

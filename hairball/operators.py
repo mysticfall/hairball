@@ -6,7 +6,7 @@ from .evaluation import HairballError, evaluated_strands, rest_strands, validate
 from .export import export_cards
 from .materials import apply_groom_color
 from .groom import create_groom
-from .geometry import generate_geometry
+from .geometry import generate_geometry, selected_grooms
 from .native import prepare_interpolation, interpolation_settings, update_interpolation
 
 
@@ -114,7 +114,9 @@ class HAIRBALL_OT_generate(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            result, report = generate_geometry(context.object, context.scene.hairball, context, textured=True)
+            grooms, active = selected_grooms(context)
+            result, report = generate_geometry(grooms, context.scene.hairball, context, textured=True,
+                                               active=active)
         except Exception as exc:
             if not isinstance(exc, HairballError):
                 traceback.print_exc()
@@ -124,10 +126,14 @@ class HAIRBALL_OT_generate(bpy.types.Operator):
             obj.select_set(False)
         result.select_set(True)
         context.view_layer.objects.active = result
+        scope = f"{report['grooms']} selected grooms" if report["grooms"] > 1 else "groom"
         self.report({"INFO"}, f"{report['cards']} cards, {report['triangles']} triangles, "
-                    f"{report['atlas_size']}px maps; {report['seconds']}s")
+                    f"{report['atlas_size']}px maps from {scope}; {report['seconds']}s")
         if report["sparse_cards"]:
             self.report({"WARNING"}, "Some cards have sparse coverage; inspect maps and consider a larger atlas")
+        if report["saturated_cards"]:
+            self.report({"WARNING"}, "Some cards have near-solid coverage; hair may render as "
+                                     "flat cards in Godot, so lower Radius Scale")
         return {"FINISHED"}
 
 
@@ -143,7 +149,9 @@ class HAIRBALL_OT_geometry(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            result, report = generate_geometry(context.object, context.scene.hairball, context)
+            grooms, active = selected_grooms(context)
+            result, report = generate_geometry(grooms, context.scene.hairball, context,
+                                               active=active)
         except Exception as exc:
             if not isinstance(exc, HairballError):
                 traceback.print_exc()
@@ -153,7 +161,9 @@ class HAIRBALL_OT_geometry(bpy.types.Operator):
             obj.select_set(False)
         result.select_set(True)
         context.view_layer.objects.active = result
-        self.report({"INFO"}, f"{report['cards']} cards, {report['triangles']} triangles; geometry only, no maps")
+        scope = f"{report['grooms']} selected grooms" if report["grooms"] > 1 else "groom"
+        self.report({"INFO"}, f"{report['cards']} cards, {report['triangles']} triangles from {scope}; "
+                    f"geometry only, no maps")
         return {"FINISHED"}
 
 
@@ -215,11 +225,15 @@ class HAIRBALL_OT_inspect(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            obj = context.object
-            validate_groom(obj)
-            final = evaluated_strands(obj)
-            rest = rest_strands(obj, context)
-            self.report({"INFO"}, f"{len(final)} evaluated strands; {len(rest)} recoverable rest strands")
+            grooms, active = selected_grooms(context)
+            counts = []
+            for groom in grooms:
+                validate_groom(groom)
+                final = evaluated_strands(groom)
+                rest = rest_strands(groom, context)
+                counts.append(f"{groom.name}: {len(final)} evaluated, {len(rest)} rest strands")
+            scope = f"{len(grooms)} selected grooms" if len(grooms) > 1 else "groom"
+            self.report({"INFO"}, f"Validated {scope}; " + "; ".join(counts))
             return {"FINISHED"}
         except HairballError as exc:
             self.report({"ERROR"}, str(exc))

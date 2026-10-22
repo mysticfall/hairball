@@ -53,6 +53,7 @@ class HAIRBALL_PT_main(bpy.types.Panel):
         box.prop(settings, "preview_mode")
         box.operator("hairball.generate_cards")
         box.operator("hairball.generate_geometry")
+        box.label(text="Select multiple grooms to combine them into one mesh", icon="INFO")
         box.separator()
         box.operator("hairball.export_cards")
         box.label(text="Select a cards object; native GLB + map save", icon="INFO")

@@ -100,6 +100,37 @@ The collection counter distinguishes generations; mesh names have no explicit
 version suffix. Blender adds its normal `.001` suffix only on a name collision.
 Generation never replaces earlier edits or outputs.
 
+### Parted hairstyles: combine selected grooms
+
+Interpolation blends the nearest guides, so strands combed to opposite sides of
+a part would bridge the gap inside one groom. Instead, groom each side
+independently—typically one guide groom per side—and select all of those groom
+objects before generating. One run then produces a single combined card mesh
+named after the active groom:
+
+```text
+Scalp Right v001
+└── Scalp Right Cards
+```
+
+Rules for combined generation:
+
+- The group is the selection: every selected visible Curves object joins the
+  run. Hidden objects are excluded even when still selected, so hidden guide
+  grooms work as backups.
+- Cards never merge across grooms: each side keeps its own clusters, anchors,
+  bone weights and morph deltas inside the shared mesh.
+- Combined attachment surfaces must deform to the same armature and share one
+  shape-key layout (matching key names); mismatches are rejected before any
+  output is created.
+- Interpolation setup requires a single-user attachment mesh, so give each
+  side its own surface working copy before creating interpolation masks.
+- The active groom names the result and provides the primary surface for
+  morph drivers; making another groom active simply selects its surface and
+  starts its own version line.
+- Generating with a single groom selected keeps the ordinary single-groom
+  behaviour and naming.
+
 Key controls (hover over any setting for details):
 
 | Setting | What it changes |
@@ -107,14 +138,16 @@ Key controls (hover over any setting for details):
 | Root Distance / Shape Difference / Direction Difference | Which strands may share a card; different root anchors remain separate |
 | Strands per Card | Maximum bundle size, not a target strand count |
 | Minimum Width | Ribbon width, **not strand thickness** |
-| Radius Scale | Generated strand thickness; preserves the groom's original radii and taper |
+| Radius Scale | Coverage thickness of baked strands; low values keep Godot's strand dithering visible |
 | Fit Error / Bend per Segment | How closely cards follow bends; tighter limits generally need more detail |
 | Max Segments | Card detail cap; increase it if the fit cannot meet your tolerance |
 | Atlas Size | Resolution of both data maps, up to 2048 × 2048 |
 | Card Display | Shaded cards or opaque map-channel diagnostics |
 
-Start Radius Scale at **1**; increase it if strands look too fine at your target
-viewing distance. Cards widen as needed to contain the scaled radii.
+Radius Scale behaves oppositely in Blender and Godot. GodotHair dithers the
+coverage channel into strands, so start at **0.25** and lower it if exported
+hair still renders as flat cards; only the approximate Blender preview reads
+thicker at higher values. Cards widen as needed to contain the scaled radii.
 
 **Generate Geometry Preview** is an optional fitting diagnostic: opaque ribbons
 with local UVs and no textures. It is not the hairstyle-colour preview above.
@@ -162,6 +195,12 @@ These are **data textures**, not colour or normal maps. For initial inspection:
 Review compression and filtering visually before changing these settings. Keep
 the mesh and both maps from the **same generation**.
 
+If the hair renders as flat cards, the coverage channel is saturated: with
+most occupied texels near 1.0 the shader's dither has nothing to discard.
+Regenerate with a lower Radius Scale (try 0.1–0.3). Raising Radius Scale makes
+exported hair more card-like, not thicker, and generation warns when cards
+have near-solid coverage.
+
 For attachment to an existing character skeleton, the reusable
 [`godot/skinned_mesh_root.gd`](godot/skinned_mesh_root.gd) import script turns a
 single-mesh rigged GLB into a mesh-root scene. Instantiate it directly under the
@@ -188,6 +227,9 @@ not automatic retargeting. Morph-value synchronization in Godot is separate.
   compatible clustering. Start with hundreds of cards, not the packing ceiling.
 - Interpolation rejects totals over 100,000 strands as a safety cap, not a
   practical performance target. Large-groom performance remains under review.
+- Combined generation (multiple selected grooms) requires one shared armature
+  and one shape-key layout; mismatched rigs or key names fail cleanly instead
+  of mixing deformation regions.
 - The Blender card material approximates appearance; it does not reproduce
   GodotHair scattering, frizz, or temporal dithering. Local projection depth is
   not whole-groom occlusion.
@@ -199,13 +241,15 @@ interactive character scene.** For example, from the repository root:
 
 ```sh
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/atlas_test.py
+blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/multi_groom_test.py
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/groom_color_test.py
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/export_test.py
 ```
 
 The suite covers rest extraction, rig/morph transfer, native effects and
-interpolation, card fitting, texture channels, cleanup, undo/persistence, native
-export, and EEVEE rendering. Synthetic fixtures establish specific behaviours,
+interpolation, card fitting, texture channels, cleanup, undo/persistence,
+native export, EEVEE rendering, and selection-grouped multi-groom
+combination. Synthetic fixtures establish specific behaviours,
 not universal production quality. The Godot attachment script has also been
 successfully tested in the user's character workflow.
 

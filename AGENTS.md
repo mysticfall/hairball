@@ -47,11 +47,22 @@ Explicit Load/Apply interpolation controls edit the selected groom transactional
 on a copied root graph, preserving guides/mask/seed/old outputs. Keep these
 authoring edits separate from non-mutating asset generation. Raster batching
 retains original subsample/segment order and bounds batch scratch allocations.
-Card generation includes a bake-only Radius Scale (groom radii are never edited)
-and widens fitted rows to contain all strand knots, so generation no longer
+Card generation includes a bake-only Radius Scale (groom radii are never
+edited; GodotHair dithers the coverage channel into strands, so low scales
+0.1-0.3 render fine strands while saturated coverage renders solid cards, and
+generation warns on near-solid cards) and widens fitted rows to contain all
+strand knots, so generation no longer
 fails on strands bowing between rows. Export Cards Package drives the native
 glTF exporter and image save with one base name; it is automation of ordinary
-Blender tools, not a custom exporter, and never writes game projects.
+Blender tools, not a custom exporter, and never writes game projects. Multiple
+selected grooms combine into a single versioned card mesh (selection-based
+groups, 2026-10-09, superseding same-day collection grouping that regressed
+real scenes): the group is the Object Mode selection—active groom plus other
+selected visible Curves objects; clustering stays per-groom, per-vertex
+surface indices mix anchors from distinct same-armature,
+same-shape-key-layout surfaces, hidden Curves objects never join even when
+still selected, results are named after the active groom, and single-groom
+selection keeps the exact single-groom contracts.
 
 ## Repository layout
 - `hairball/` — extension source package: `blender_manifest.toml`, UI and

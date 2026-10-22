@@ -25,42 +25,99 @@ def _result_label(groom):
         name = shorter
 
 
+def _scene_contains(root, target):
+    return root == target or any(_scene_contains(child, target) for child in root.children)
+
+
 def _result_parent(groom, scene):
     """Use a source collection in this scene; never link into another scene."""
-    def contains(root, target):
-        return root == target or any(contains(child, target) for child in root.children)
     return next((collection for collection in groom.users_collection
-                 if contains(scene.collection, collection)), scene.collection)
+                 if _scene_contains(scene.collection, collection)), scene.collection)
 
 
-def generate_geometry(groom, settings, context=None, *, textured=False):
+def selected_grooms(context):
+    """Resolve the grooms to generate from the current selection.
+
+    Every selected Hair Curves object joins one combined mesh; selecting a
+    single groom keeps the exact standalone behaviour. Hidden objects (such
+    as backup guide grooms) never join, even when their selection state is
+    stale. The active groom names the result and provides the primary
+    surface.
+    """
+    active = context.object
+    if active is None or active.type != "CURVES":
+        raise HairballError("Select a modern Hair Curves object, not legacy Curve/particle hair.")
+    if active.hide_get():
+        raise HairballError("The active groom is hidden in the viewport.")
+    members = {active}
+    members.update(obj for obj in context.selected_objects
+                   if obj.type == "CURVES" and not obj.hide_get())
+    return tuple(sorted(members, key=lambda obj: obj.name)), active
+
+
+def generate_geometry(grooms, settings, context=None, *, textured=False, active=None):
+    """Generate one independent versioned result from one or more grooms.
+
+    Standalone grooms keep their exact provenance; selected grooms (one Curves
+    object per hairstyle side or patch) combine into a single mesh and atlas
+    pair while each card keeps its own groom's surface anchor provenance.
+    Cards never merge strands from different grooms. The active groom names
+    the result and provides the primary surface.
+    """
     started = time.perf_counter()
     context = context or bpy.context
-    surface = validate_groom(groom)
-    if any(m.show_viewport and m.type not in {"ARMATURE", "SUBSURF"} for m in surface.modifiers):
-        raise HairballError("Geometry preview currently supports only Armature/Subdivision surface modifiers.")
-    final = evaluated_strands(groom)
-    rest = rest_strands(groom, context, resample=True)
-    if {s.identifier for s in final} != {s.identifier for s in rest}:
-        raise HairballError("Rest evaluation changed strand identities; this graph needs another audit.")
-    matrix = groom.matrix_world.copy()
-    if abs(matrix.determinant()) < 1e-12:
-        raise HairballError("The groom has a singular transform.")
-    axes = [matrix.to_3x3().col[i].normalized() for i in range(3)]
-    if any(abs(axes[a].dot(axes[b])) > 1e-5 for a, b in ((0, 1), (0, 2), (1, 2))):
-        raise HairballError("Sheared groom transforms are not yet supported for strand radius conversion.")
-    scale = max(abs(value) for value in matrix.to_scale())
-    strands = tuple(Strand(s.identifier, tuple(tuple(matrix @ Vector(p)) for p in s.points),
-                           tuple(radius * scale * settings.radius_scale for radius in s.radii)) for s in rest)
-    anchors = nearest_anchors(surface, [s.points[0] for s in rest], matrix)
-    bundles = cluster_strands(strands, anchors, root_distance=settings.cluster_radius,
-                              shape_distance=settings.cluster_shape_error,
-                              direction_angle=settings.cluster_angle, max_strands=settings.bundle_size)
-    ribbons = fit_bundles(bundles, minimum_width=settings.card_width, fit_error=settings.fit_error,
-                          bend_limit=settings.bend_limit, max_segments=settings.max_segments)
+    if isinstance(grooms, bpy.types.Object):
+        grooms = (grooms,)
+    grooms = tuple(grooms)
+    if not grooms or any(groom is None or groom.type != "CURVES" for groom in grooms):
+        raise HairballError("Select a modern Hair Curves object, not legacy Curve/particle hair.")
+    active = active if active is not None else grooms[0]
+    combined = len(grooms) > 1
+    sources, surfaces, surface_ids = [], [], {}
+    bundles, bundle_sources = [], []
+    strands_total = 0
+    for ordinal, groom in enumerate(grooms):
+        surface = validate_groom(groom)
+        if any(m.show_viewport and m.type not in {"ARMATURE", "SUBSURF"} for m in surface.modifiers):
+            raise HairballError("Geometry preview currently supports only Armature/Subdivision surface modifiers.")
+        if id(surface) not in surface_ids:
+            surface_ids[id(surface)] = len(surfaces)
+            surfaces.append(surface)
+        final = evaluated_strands(groom)
+        rest = rest_strands(groom, context, resample=True)
+        if {s.identifier for s in final} != {s.identifier for s in rest}:
+            raise HairballError("Rest evaluation changed strand identities; this graph needs another audit.")
+        matrix = groom.matrix_world.copy()
+        if abs(matrix.determinant()) < 1e-12:
+            raise HairballError("The groom has a singular transform.")
+        axes = [matrix.to_3x3().col[i].normalized() for i in range(3)]
+        if any(abs(axes[a].dot(axes[b])) > 1e-5 for a, b in ((0, 1), (0, 2), (1, 2))):
+            raise HairballError("Sheared groom transforms are not yet supported for strand radius conversion.")
+        scale = max(abs(value) for value in matrix.to_scale())
+        if combined and any(s.identifier >= (1 << 40) for s in rest):
+            raise HairballError("Strand ids are too large to group deterministically.")
+        offset = ordinal << 40 if combined else 0
+        strands = tuple(Strand(offset + s.identifier, tuple(tuple(matrix @ Vector(p)) for p in s.points),
+                               tuple(radius * scale * settings.radius_scale for radius in s.radii)) for s in rest)
+        anchors = nearest_anchors(surface, [s.points[0] for s in rest], matrix)
+        produced = cluster_strands(strands, anchors, root_distance=settings.cluster_radius,
+                                   shape_distance=settings.cluster_shape_error,
+                                   direction_angle=settings.cluster_angle, max_strands=settings.bundle_size)
+        bundles.extend(produced)
+        bundle_sources.extend([len(sources)] * len(produced))
+        strands_total += len(strands)
+        sources.append({"groom": groom, "surface": surface,
+                        "surface_index": surface_ids[id(surface)], "offset": offset})
+    ribbons, ribbon_sources = [], []
+    for bundle, ordinal in zip(bundles, bundle_sources):
+        produced = fit_bundles((bundle,), minimum_width=settings.card_width, fit_error=settings.fit_error,
+                               bend_limit=settings.bend_limit, max_segments=settings.max_segments)
+        ribbons.extend(produced)
+        ribbon_sources.extend([ordinal] * len(produced))
     tiles = pack(ribbons, settings.atlas_size) if textured else None
-    vertices, faces, uvs, vertex_anchors, card_ids, root_parameters, metadata = [], [], [], [], [], [], []
+    vertices, faces, uvs, vertex_anchors, vertex_surfaces, card_ids, root_parameters, metadata = [], [], [], [], [], [], [], []
     for card_index, ribbon in enumerate(ribbons):
+        source = sources[ribbon_sources[card_index]]
         positions, polygons, coordinates = ribbon_geometry(ribbon)
         if textured:
             coordinates = [tiles[card_index].uv(uv) for uv in coordinates]
@@ -72,25 +129,40 @@ def generate_geometry(groom, settings, context=None, *, textured=False):
         uvs.extend(coordinates)
         root_parameters.extend(parameter for parameter in ribbon.parameters for _ in range(2))
         vertex_anchors.extend([ribbon.anchor] * len(positions))
+        vertex_surfaces.extend([source["surface_index"]] * len(positions))
         card_ids.extend([card_index] * len(polygons))
-        metadata.append({"anchor": ribbon.anchor, "strands": [s.identifier for s in ribbon.strands],
-                          "vertex_start": start, "vertex_count": len(positions),
-                          "face_start": face_start, "face_count": len(polygons)})
+        entry = {"anchor": ribbon.anchor, "strands": [s.identifier for s in ribbon.strands],
+                 "vertex_start": start, "vertex_count": len(positions),
+                 "face_start": face_start, "face_count": len(polygons)}
+        if combined:
+            entry["groom"] = source["groom"].name
+            entry["surface"] = source["surface"].name
+        metadata.append(entry)
         if textured:
             tile = tiles[card_index]
             metadata[-1]["atlas_tile"] = [tile.x, tile.y, tile.width, tile.height]
     kind = "HAIR_CARDS" if textured else "GEOMETRY_PREVIEW"
-    version = max((c.get("hairball_version", 0) for c in bpy.data.collections
-                    if c.get("hairball_source_object") == groom
-                    and c.get("hairball_kind") == kind), default=0) + 1
-    label = _result_label(groom)
+    members = json.dumps([source["groom"].name for source in sources]) if combined else None
+    label = _result_label(active)
+    if combined:
+        version = max((c.get("hairball_version", 0) for c in bpy.data.collections
+                       if c.get("hairball_kind") == kind and c.get("hairball_group") == members
+                       and c.get("hairball_label") == label), default=0) + 1
+    else:
+        version = max((c.get("hairball_version", 0) for c in bpy.data.collections
+                       if c.get("hairball_source_object") == active
+                       and c.get("hairball_kind") == kind
+                       and not c.get("hairball_group")), default=0) + 1
     collection_name = f"{label}{'' if textured else ' Preview'} v{version:03d}"
     name = f"{label} {'Cards' if textured else 'Preview'}"
+    primary = next((source["surface_index"] for source in sources if source["groom"] == active),
+                   sources[0]["surface_index"])
     mesh = obj = collection = material = None
     images = []
     try:
         collection = bpy.data.collections.new(collection_name)
-        _result_parent(groom, context.scene).children.link(collection)
+        parent = _result_parent(active, context.scene)
+        parent.children.link(collection)
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata(vertices, [], faces)
         mesh.update()
@@ -101,14 +173,14 @@ def generate_geometry(groom, settings, context=None, *, textured=False):
         obj = bpy.data.objects.new(name, mesh)
         collection.objects.link(obj)
         obj.matrix_world = Matrix.Identity(4)
-        transfer(surface, obj, vertex_anchors)
+        transfer(surfaces, obj, vertex_anchors, vertex_surfaces, primary=primary)
         if obj.parent is None:
-            obj.parent = surface
-            obj.matrix_parent_inverse = surface.matrix_world.inverted()
+            obj.parent = surfaces[primary]
+            obj.matrix_parent_inverse = surfaces[primary].matrix_world.inverted()
             obj.matrix_world = Matrix.Identity(4)
-        warnings = 0
+        warnings = saturated = 0
         if textured:
-            images, warnings = bake(mesh, ribbons, tiles, name, settings.seed)
+            images, warnings, saturated = bake(mesh, ribbons, tiles, name, settings.seed)
             material = bpy.data.materials.new(f"{name} Preview")
             preview_material(material.name, *images, tuple(settings.preview_color),
                              material=material, diagnostic=settings.preview_mode)
@@ -125,7 +197,7 @@ def generate_geometry(groom, settings, context=None, *, textured=False):
         obj.show_wire = not textured
         obj.show_all_edges = not textured
         obj["hairball_kind"] = kind
-        obj["hairball_groom"] = groom
+        obj["hairball_groom"] = active
         obj["hairball_cards"] = json.dumps(metadata)
         keys = (
              "cluster_radius", "cluster_shape_error", "cluster_angle", "bundle_size",
@@ -137,14 +209,23 @@ def generate_geometry(groom, settings, context=None, *, textured=False):
             stored_settings = json.loads(obj["hairball_settings"])
             stored_settings["preview_color"] = list(settings.preview_color)
             obj["hairball_settings"] = json.dumps(stored_settings)
-        report = {"strands": len(strands), "clusters": len(bundles), "cards": len(ribbons),
+        if combined:
+            obj["hairball_grooms"] = members
+            obj["hairball_groom_offsets"] = json.dumps(
+                {source["groom"].name: source["offset"] for source in sources})
+        report = {"strands": strands_total, "clusters": len(bundles), "cards": len(ribbons),
                   "vertices": len(vertices), "triangles": len(faces) if textured else 2 * len(faces), "version": version,
+                  "grooms": len(sources),
                   "seconds": round(time.perf_counter() - started, 4)}
         if textured:
-            report.update(atlas_size=settings.atlas_size, sparse_cards=warnings)
+            report.update(atlas_size=settings.atlas_size, sparse_cards=warnings,
+                          saturated_cards=saturated)
         obj["hairball_report"] = json.dumps(report)
         collection["hairball_kind"] = kind
-        collection["hairball_source_object"] = groom
+        collection["hairball_source_object"] = active
+        if combined:
+            collection["hairball_group"] = members
+            collection["hairball_label"] = label
         collection["hairball_version"] = version
         context.view_layer.update()
         return obj, report

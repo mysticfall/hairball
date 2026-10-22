@@ -65,6 +65,22 @@ This preserves Blender motion and exported glTF motion. Godot must synchronize
 body/card morph values separately. This supersedes retaining literal relative
 links on generated cards in the original plan.
 
+### Approved update: selection-grouped grooms (2026-10-09)
+Parted hairstyles combine grooms by selection, superseding the same-day
+collection-based grouping decision after it regressed real scenes (any
+container collection was mistaken for a hairstyle group). The group is the
+Object Mode selection at generate time: the active groom plus every other
+selected visible Curves object. Hidden objects never join, even when still
+selected, so hidden guide grooms stay inert backups. Generation combines all
+members into a single versioned card mesh named after the active groom, which
+also provides the primary surface for morph drivers. Clustering stays
+per-groom so cards never merge across a part; each card keeps its own
+surface's anchors, bone weights and Basis-relative morph deltas (above).
+Combined surfaces must skin to one armature and share one shape-key layout;
+mismatches fail before allocation. The interpolation setup's single-user
+surface rule implies per-side surface copies for parted grooms, and
+single-groom selection keeps the exact single-groom contracts.
+
 ## Maps and viewport
 | Map | Channels |
 | --- | --- |
@@ -72,6 +88,9 @@ links on generated cards in the original plan.
 | Coordinates | RGB tangent-space strand direction encoded [-1,1]→[0,1]; A full root-to-tip parameter |
 
 The depth channel is an approximation, not physically accurate global occlusion.
+Coverage is the union of strand disks (groom radius × Radius Scale); GodotHair
+dithers it into strands, so near-solid coverage renders as solid cards, and
+generation counts saturated cards to warn (2026-10-09).
 Coverage antialiasing, consistent visible-strand data, atlas borders, overlap,
 TBN handedness, and root/tip order must be tested. Image data is Non-Color;
 coordinate alpha is channel-packed data, never opacity. Generate new immutable
