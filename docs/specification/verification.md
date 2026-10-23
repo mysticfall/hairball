@@ -13,8 +13,137 @@ to blue as requested; this does not establish GodotHair shading equivalence.
 
 All tests run in separate factory-startup background processes. No interactive
 Blender MCP, reference character save, or game-project changes were used.
-All thirteen test scripts pass on the source checkout. Version remains 0.5.0 and no
-new distribution was built, as requested.
+The previous source suite passed before the atlas/filter update below. Version
+remains 0.5.0 and no new distribution was built, as requested.
+
+### Atlas/filter correction (2026-10-22)
+`subpixel_baking_test.py` checks a 0.015-texel strand at 21 translations,
+area proportionality to radius, coincident/partial/disjoint interval unions,
+inclined-strip area, resolution scaling, shallowest data, and finite collapsed
+row handling. `atlas_packing_test.py` checks deterministic variable tile sizes,
+preserved card order, bounds, complete gutters, the minimum packing ceiling,
+invalid geometry rejection and resolution diagnostics. Both isolated tests pass.
+The interval filter approximates vertical curvature with four samples and clips
+root/tip caps; these are not claims of exact two-dimensional disk integration.
+The original batching/equivalence rows below describe the prior point-sampled
+baker, not pixel equivalence of this intentionally different coverage filter.
+All fifteen `tools/*_test.py` scripts pass in separate factory-startup Blender
+5.2.2 processes after this update. Corrected Ayana/Godot appearance review is
+pending; passing fixtures do not establish production quality.
+
+The separate local bob test export reduces 5,749 cards / 399,404 triangles to
+1,683 cards / 213,124 triangles, retaining all 41,944 source strands and rigid
+head weights. Islands now span 8–119 texels across rather than uniformly 8;
+8-bit coverage has 254 nonzero levels instead of four. GLB skin/UV/data-map
+structure checks pass, with both maps 2048 RGBA8. The independent `.blend`
+reopens with the corrected result active and packed maps matching the PNGs
+within one quantization step. This remains heavy geometry, and
+1,658 cards have representative diameters below ¼ texel (median
+0.0411 texel). It is an improved test artifact, **not** a Godot visual pass or
+reference-quality result. The shader and game project were not changed.
+User Godot review subsequently found little visual improvement: the bob still
+reads as ragged overlapping sheets. The installed GLB and both PNGs were checked
+byte-for-byte against v007 and match; material texture bindings are correct.
+Therefore this revision **fails the hairstyle appearance gate** despite passing
+structural and synthetic tests. Card overlap, bundle coherence and texture
+sampling must be isolated before claiming a visual fix; another atlas-only
+adjustment is not established as sufficient.
+
+### Pattern reuse (2026-10-23)
+`pattern_reuse_test.py` checks deterministic grouping (source separation,
+shape/population splits, coarsening into the fixed patch grid), donor
+selection, shared-island bake coverage with subpixel levels, and rejection of
+empty input. All sixteen `tools/*_test.py` scripts pass in isolated
+factory-startup processes; `atlas_test`/`multi_groom_test` now run through the
+pattern path with per-groom seed disjointness intact. The bob pattern export
+(`Ayana-bob-godot-v008`) maps 1,683 cards onto 21 shared 256×512 patches
+(median 23 members, median 16-strand donors): occupied fraction median 12.8%
+with black gaps, near-opaque coverage ~0, 255 nonzero coverage levels, median
+strand diameter 0.2405 texel (was 0.0411), underresolved cards 894 (was 1,658).
+GLB/skin/map structure and blend-reopen checks pass. Subsequent user Godot
+review shows dotted, noisy strands; v008 does **not** pass the appearance gate.
+
+### Thickness-only diagnostic (2026-10-23)
+The independent local v009 experiment multiplies v008 baked radii by eight
+(effective Radius Scale 2.0 instead of 0.25), without changing paths, patch
+donors, seed, UVs, shader or geometry. The GLB is byte-identical to v008.
+This is an experiment-local post-projection radius adjustment, not a source
+baker/default change or a minimum-radius floor; enlarged strokes clip at the
+existing patch bounds (3,314 of 87,520 projected donor samples cross a bound).
+Across nonzero atlas texels, median coverage rises from 24.3% to 100%; median
+horizontal runs at coverage >=90% rise from one to two pixels. The explicitly
+provided read-only Wings reference has corresponding values of 98.8% and two
+pixels; horizontal runs are not exact strand diameters or screen-space widths.
+GLB skin/UV checks and packed-image save/reopen checks pass. **Godot appearance
+is pending**, including whether thicker strands connect or merge into ribbons.
+No reference assets were bundled, source grooms changed, or game files written.
+User Godot review reports v009 looks much better, but still below the reference
+quality, with possible merged strands or model-related bands. This is an
+improvement, **not** completion of the appearance gate.
+
+Read-only analysis of the explicitly provided Wings GLB finds 2,008 disconnected
+position+UV components versus 1,683 for the bob; these are topology components,
+not a guaranteed semantic card count. Wings has 29,936 triangles versus 213,124;
+the median component has 14 versus 132 triangles. Exported bob normals nearly
+equal triangle face normals, whereas Wings normals depart slightly from the
+faces, consistent with smooth shading. The bob has about twice the summed mesh
+surface area at comparable extents, but the different silhouettes/styles mean
+this is only a layering diagnostic, not an optimization budget or target.
+The next local texture-only diagnostic uses four times v008's radius (half of
+v009), retaining byte-identical geometry and unchanged UVs, donors and shader.
+Smoother normal/tangent handling and card fitting remain separate investigations;
+no normal or geometry improvement is claimed by the midpoint texture test.
+This diagnostic is exported as local v010. Structure and packed-map reopen
+checks pass; median nonzero coverage is 83.9% (v009: 100%), and strong horizontal
+runs still have a two-pixel median. GLB bytes match v008/v009. Visual comparison
+against v009 in the same view/material remains pending.
+User reports v010 improves the result, but no-AA screenshots show both pixel
+stair-stepping and larger angular silhouette flyaways, especially at the back.
+It remains below the visual gate. A read-only local audit samples each fitted
+centerline at 257 uniform root-to-tip parameters, and donor patterns on up to
+eight recipient cards per patch. Some fitted paths contain abrupt near-reversals.
+For the sampled recipient set, the 95th-percentile turn is 6.39 degrees for
+centerlines, 9.64 for their first own projected strand, and 15.03 for transplanted
+donor strands. The own-strand comparison is a control, not a one-to-one strand
+correspondence or a complete rendered-card/texture-footprint test. Pattern reuse
+can amplify angularity; both card-path continuity and recipient-aware texture
+warping need investigation. These statistics do not locate the screenshot's
+circled strands, prove a single cause, or establish that smoothing normals or
+enabling AA repairs silhouette kinks. No visual correction is established.
+
+### Matched physical-path audit and straight-pattern control (2026-10-23)
+A further local, scene-independent audit maps atlas paths onto the exact two
+triangles of each ribbon row using barycentric coordinates. Depth is not treated
+as displacement. Incoming/outgoing 5 mm chords are compared every 2 mm along
+each reconstructed path, rather than measuring turns at arbitrarily tiny knots.
+With one deterministic source strand per card, 95th-percentile turns are 25.40
+degrees in the extracted source, 33.22 for that same strand on its own card,
+37.05 for a donor on recipient cards, and 31.55 with the donor held at constant
+atlas U. Recipient centerlines measure 20.12 degrees. The own-source/surface
+position difference has median 5.14 mm and 95th percentile 17.49 mm; planar
+flattening is lossy, so this is not by itself proof of a faulty implementation.
+These are differently weighted path samples, not pixel statistics or a mapping
+of the circled screenshot strands. Native evaluated groom versus extracted
+polyline fidelity and runtime shading remain unverified. Both existing source
+bends and mapping distortion need investigation; no single cause is established.
+
+Local v012 is a diagnostic straight-pattern bake against v010, not a proposed
+final hairstyle. Each donor strand is held at its V-integrated mean atlas U;
+radius/taper (four times v008), depth, seed, donors, UVs and card geometry remain
+unchanged. Directions are rebaked for the altered path on the actual triangles.
+Coverage/overlap necessarily change when paths straighten. The GLB is copied
+byte-for-byte from v010; both PNGs must be replaced together for comparison.
+An earlier local v011 used an approximate direction reconstruction and is not
+the comparison artifact. Reference/game files and the interactive scene were
+not changed. Structural export and packed-map reopen checks are recorded in
+the package; Godot comparison of the same rear-side flyaways remains pending.
+User subsequently reports v012 looks pretty good, with the particular problem
+region still noticeable, and intends to revise its grooming first. This is
+positive visual feedback, not a complete production-quality or deformation gate.
+The committed add-on contains the filtered coverage and atlas/pattern-reuse
+features, including the Pattern Reuse UI toggle. The local v010/v012 thickness
+and constant-U path controls remain export-only experiments, not changed
+generation defaults or a reproducible v012 preset in the add-on.
 
 | Gate | Evidence |
 | --- | --- |

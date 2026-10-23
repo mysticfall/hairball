@@ -1,6 +1,6 @@
 import bpy
 import math
-from bpy.props import EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, PointerProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, FloatVectorProperty, IntProperty, PointerProperty
 
 
 class HairballSettings(bpy.types.PropertyGroup):
@@ -54,6 +54,8 @@ class HairballSettings(bpy.types.PropertyGroup):
                               description="Editable control points per new guide. More points support finer curls but increase grooming/evaluation cost; this is not card segment count")
     atlas_size: IntProperty(name="Atlas Size", default=2048, min=64, max=2048,
                             description="Width and height in pixels of each of the two data maps. Larger maps resolve thinner strands/more cards but use more memory and baking time; current limit is 2048")
+    pattern_reuse: BoolProperty(name="Pattern Reuse", default=True,
+                                description="Bake one large shared patch per group of similar cards instead of one tiny island per card. Group members display the densest member's strand pattern, trading exact per-card strand data for much finer resolved strands. Groups never mix grooms; disable to give every card its own small island")
     preview_color: FloatVectorProperty(name="Hair Color", subtype="COLOR", size=4,
                                        description="Colour for Apply Groom Colour and new card preview materials. Apply explicitly to preview native strands; does not change data maps, existing cards or Godot materials",
                                       default=(0.12, 0.045, 0.02, 1), min=0, max=1)

@@ -29,7 +29,7 @@ Geometry Preview (0.3.0) and Generate Hair Cards (0.4.0). Deterministic anchor-c
 fitting and independent versioned skinned/morphed geometry are implemented.
 Geometry previews have opaque diagnostic materials and local UVs, not atlases.
 Selected Faces restricts initial guide placement, not native Add/Slide brushes.
-Textured generation includes padded grid atlases, packed Non-Color data images,
+Textured generation includes independent padded atlas islands, packed Non-Color data images,
 coverage rasterization and approximate preview/diagnostic materials. Synthetic
 image undo/persistence and export basis tests pass; production/Godot validation
 remain pending. Atlas size capped at 2048. Native interpolation status is below.
@@ -45,8 +45,15 @@ Do not update the version or build distributions until production-ready (user
 request). Test the checkout directly; the 0.5.0 archive predates interpolation.
 Explicit Load/Apply interpolation controls edit the selected groom transactionally
 on a copied root graph, preserving guides/mask/seed/old outputs. Keep these
-authoring edits separate from non-mutating asset generation. Raster batching
-retains original subsample/segment order and bounds batch scratch allocations.
+authoring edits separate from non-mutating asset generation. Coverage now unions
+horizontal strand-width intervals at four vertical samples, retaining subpixel
+area without a radius floor; row batching bounds scratch. Size-aware shelves
+shift sampling across populated bundles and report quarter-texel diameter
+pressure. The previous point-raster kernels remain regression references, not
+the production coverage path. Pattern Reuse (default) shares large 256x512
+patches per similar-card group, baked from the densest member only; exact
+per-card strand data is not retained for non-donors. These changes do not
+establish Godot quality.
 Card generation includes a bake-only Radius Scale (groom radii are never
 edited; GodotHair dithers the coverage channel into strands, so low scales
 0.1-0.3 render fine strands while saturated coverage renders solid cards, and

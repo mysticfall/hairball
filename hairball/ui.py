@@ -50,6 +50,7 @@ class HAIRBALL_PT_main(bpy.types.Panel):
         box.prop(settings, "bend_limit")
         box.prop(settings, "max_segments")
         box.prop(settings, "atlas_size")
+        box.prop(settings, "pattern_reuse")
         box.prop(settings, "preview_mode")
         box.operator("hairball.generate_cards")
         box.operator("hairball.generate_geometry")

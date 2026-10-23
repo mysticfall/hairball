@@ -7,7 +7,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 from .cards import fit_bundles, ribbon_geometry
-from .atlas import pack
+from .atlas import pack, pack_patterns, resolution_report
 from .baking import bake
 from .materials import preview_material
 from .clustering import cluster_strands
@@ -114,7 +114,18 @@ def generate_geometry(grooms, settings, context=None, *, textured=False, active=
                                bend_limit=settings.bend_limit, max_segments=settings.max_segments)
         ribbons.extend(produced)
         ribbon_sources.extend([ordinal] * len(produced))
-    tiles = pack(ribbons, settings.atlas_size) if textured else None
+    if textured:
+        if settings.pattern_reuse:
+            tiles, pattern_groups = pack_patterns(ribbons, settings.atlas_size, sources=ribbon_sources)
+        else:
+            tiles, pattern_groups = pack(ribbons, settings.atlas_size), None
+    else:
+        tiles, pattern_groups = None, None
+    pattern_of = {}
+    if pattern_groups:
+        for group_id, group in enumerate(pattern_groups):
+            for member in group["members"]:
+                pattern_of[member] = group_id
     vertices, faces, uvs, vertex_anchors, vertex_surfaces, card_ids, root_parameters, metadata = [], [], [], [], [], [], [], []
     for card_index, ribbon in enumerate(ribbons):
         source = sources[ribbon_sources[card_index]]
@@ -141,6 +152,11 @@ def generate_geometry(grooms, settings, context=None, *, textured=False, active=
         if textured:
             tile = tiles[card_index]
             metadata[-1]["atlas_tile"] = [tile.x, tile.y, tile.width, tile.height]
+            if card_index in pattern_of:
+                group = pattern_groups[pattern_of[card_index]]
+                metadata[-1]["pattern_group"] = pattern_of[card_index]
+                metadata[-1]["pattern_donor"] = card_index == group["donor"]
+                metadata[-1]["pattern_members"] = len(group["members"])
     kind = "HAIR_CARDS" if textured else "GEOMETRY_PREVIEW"
     members = json.dumps([source["groom"].name for source in sources]) if combined else None
     label = _result_label(active)
@@ -203,11 +219,14 @@ def generate_geometry(grooms, settings, context=None, *, textured=False, active=
              "cluster_radius", "cluster_shape_error", "cluster_angle", "bundle_size",
              "card_width", "radius_scale", "fit_error", "bend_limit", "max_segments")
         if textured:
-            keys += ("atlas_size", "seed", "preview_mode")
+            keys += ("atlas_size", "seed", "preview_mode", "pattern_reuse")
         obj["hairball_settings"] = json.dumps({key: getattr(settings, key) for key in keys})
         if textured:
             stored_settings = json.loads(obj["hairball_settings"])
             stored_settings["preview_color"] = list(settings.preview_color)
+            stored_settings["coverage_filter"] = "horizontal_interval_union_4y"
+            stored_settings["atlas_packing"] = ("shared_pattern_patches" if settings.pattern_reuse
+                                                else "size_aware_shelves_across_priority")
             obj["hairball_settings"] = json.dumps(stored_settings)
         if combined:
             obj["hairball_grooms"] = members
@@ -220,6 +239,9 @@ def generate_geometry(grooms, settings, context=None, *, textured=False, active=
         if textured:
             report.update(atlas_size=settings.atlas_size, sparse_cards=warnings,
                           saturated_cards=saturated)
+            report.update(resolution_report(ribbons, tiles))
+            if pattern_groups:
+                report["pattern_patches"] = len(pattern_groups)
         obj["hairball_report"] = json.dumps(report)
         collection["hairball_kind"] = kind
         collection["hairball_source_object"] = active

@@ -91,6 +91,28 @@ The depth channel is an approximation, not physically accurate global occlusion.
 Coverage is the union of strand disks (groom radius × Radius Scale); GodotHair
 dithers it into strands, so near-solid coverage renders as solid cards, and
 generation counts saturated cards to warn (2026-10-09).
+Source update (2026-10-22): horizontal strand-width intervals are unioned before
+area filtering at four vertical samples. This retains subpixel coverage without
+enlarging strand radii or adding coincident layers' opacity; vertical curvature
+and root/tip caps remain approximate. Reject cards whose coverage cannot survive
+8-bit PNG quantization. Size-aware, unrotated shelf packing replaces equal grid
+slots, keeping independent islands and gutters. Report tile-size ranges and a
+quarter-texel representative-diameter warning, not just the packing ceiling.
+Populated bundles shift their requested aspect toward across-strand sampling by
+up to 4× in width / ¼× in height, without increasing requested area; this is an
+explicit heuristic, not guaranteed strand separation or optimal allocation.
+This is not production appearance validation.
+
+Source update (2026-10-23): **Pattern Reuse** (default, user-approved after the
+v007 Godot review showed crowded tiny islands) deliberately reintroduces limited
+texture-template sharing: similar cards (same groom, straightness/population/
+width-profile buckets, deterministically coarsened to a fixed 7×3 patch grid at
+2048) share one large 256×512 patch baked only from the group's densest member.
+Members keep their own geometry, anchors and root-to-tip mapping but display the
+donor's approximate strand pattern; exact per-card strand coverage is not
+retained for non-donors. Groups never mix grooms. The prior per-card island
+packing remains available by disabling the setting.
+
 Coverage antialiasing, consistent visible-strand data, atlas borders, overlap,
 TBN handedness, and root/tip order must be tested. Image data is Non-Color;
 coordinate alpha is channel-packed data, never opacity. Generate new immutable
@@ -133,8 +155,9 @@ manual output edits. Native shape-key editing precautions still apply.
    deterministic pairwise 17-sample shape checks and curl-cancellation splitting.
    Production quality/performance review remains pending.
 4. Atlas packing and deterministic strand rasterization with both data maps:
-   implemented in 0.4.0 with padded grid slots, four coverage samples, shallowest
-   data selection and per-island data dilation. Optimal packing/sharing and
+    initially implemented in 0.4.0 with padded grid slots and four point samples;
+    source now uses size-aware shelves and horizontal interval coverage filtering,
+    shallowest data selection and per-island data dilation. Optimal packing/sharing and
    production quality remain pending. Atlas size currently capped at 2048 to
     bound CPU working memory; empty coverage rejects. Source development added
     a generation-time Radius Scale (bake-only strand thickness multiplier; the

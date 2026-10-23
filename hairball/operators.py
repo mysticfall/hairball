@@ -127,10 +127,15 @@ class HAIRBALL_OT_generate(bpy.types.Operator):
         result.select_set(True)
         context.view_layer.objects.active = result
         scope = f"{report['grooms']} selected grooms" if report["grooms"] > 1 else "groom"
-        self.report({"INFO"}, f"{report['cards']} cards, {report['triangles']} triangles, "
+        patches = f" across {report['pattern_patches']} shared patches" if "pattern_patches" in report else ""
+        self.report({"INFO"}, f"{report['cards']} cards{patches}, {report['triangles']} triangles, "
                     f"{report['atlas_size']}px maps from {scope}; {report['seconds']}s")
         if report["sparse_cards"]:
             self.report({"WARNING"}, "Some cards have sparse coverage; inspect maps and consider a larger atlas")
+        if report["underresolved_cards"]:
+            self.report({"WARNING"}, "Some cards have strand diameters below a quarter texel; "
+                                     "increase Atlas Size or reduce card fragmentation. "
+                                     "Packing success does not guarantee strand separation")
         if report["saturated_cards"]:
             self.report({"WARNING"}, "Some cards have near-solid coverage; hair may render as "
                                      "flat cards in Godot, so lower Radius Scale")

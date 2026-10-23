@@ -148,6 +148,24 @@ Radius Scale behaves oppositely in Blender and Godot. GodotHair dithers the
 coverage channel into strands, so start at **0.25** and lower it if exported
 hair still renders as flat cards; only the approximate Blender preview reads
 thicker at higher values. Cards widen as needed to contain the scaled radii.
+Radius Scale is not a remedy for an under-resolved atlas: increasing thickness
+to make missed strands visible can merge the texture into solid strips.
+
+Atlas islands are allocated by each card's width and length, rather than one
+equal-sized grid slot per card. Populated bundles prioritize across-strand
+resolution over longitudinal resolution (a bounded heuristic, not optimal packing).
+Coverage integrates horizontal strand intervals
+at four vertical samples, preserving subpixel area without a minimum-radius
+floor. Generation reports island-size ranges and warns when representative
+strand diameters are below a quarter texel. This warning is a sampling-pressure
+diagnostic, not a promise that larger diameters guarantee a convincing result.
+
+With **Pattern Reuse** (default on), similar cards share large 256×512 patches
+baked once from each group's densest member, instead of every card getting a
+tiny private island. Group members display the donor's strand pattern — the
+ordinary hand-authored hair-card workflow — and exact per-card strand data is
+intentionally not retained for non-donors. Groups never mix grooms. Disable
+Pattern Reuse to return to one private island per card.
 
 **Generate Geometry Preview** is an optional fitting diagnostic: opaque ribbons
 with local UVs and no textures. It is not the hairstyle-colour preview above.
@@ -241,6 +259,8 @@ interactive character scene.** For example, from the repository root:
 
 ```sh
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/atlas_test.py
+blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/atlas_packing_test.py
+blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/subpixel_baking_test.py
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/multi_groom_test.py
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/groom_color_test.py
 blender --background --factory-startup --disable-autoexec --threads 2 --python-exit-code 1 --python tools/export_test.py
